@@ -90,7 +90,9 @@ func main() {
 		ChangedFiles int
 		TotalCommentsCount int
 		Closed bool
+		ClosedAt time.Time
 		Merged bool
+		MergedAt time.Time
 	}
 
 	var query struct {
@@ -189,9 +191,9 @@ func main() {
 			removedLines 	+= pr.Deletions
 			changedFiles 	+= pr.ChangedFiles
 
-			if pr.Merged {
+			if pr.Merged && !pr.MergedAt.After(endDate) {
 				mergedPRs++
-			} else if !pr.Closed {
+			} else if !pr.Closed || pr.ClosedAt.After(endDate) {
 				openPRs++
 			}
 		}

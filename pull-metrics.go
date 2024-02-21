@@ -46,14 +46,14 @@ func main() {
 		log.Fatal("pull-metrics <start date> [<end date>]. E.g.: pull-metrics 2024-02-28 [2024-03-15]")
 	}
 
-	initialDate, err := time.Parse("2006-01-02", os.Args[1])
+	initialDate, err := time.Parse("2006-1-2", os.Args[1])
 	if err != nil {
 		log.Fatalf("Error parsing the time: %v", err)
 	}
 
 	endDate := time.Now()
 	if len(os.Args) > 2 {
-		if date, err := time.Parse("2006-01-02", os.Args[2]); err == nil {
+		if date, err := time.Parse("2006-1-2", os.Args[2]); err == nil {
 			endDate = date.Add(time.Hour * 24 - time.Second)
 		}
 	}

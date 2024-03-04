@@ -7,6 +7,11 @@ import (
 	"context"
 	"time"
 	"sort"
+	"bytes"
+	"encoding/json"
+
+	"net/http"
+	"encoding/base64"
 
 	"github.com/joho/godotenv"
 
@@ -37,27 +42,7 @@ func getNameById(login string)string {
 	return query.User.Name
 }
 
-func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
-	if len(os.Args) < 2 {
-		log.Fatal("pull-metrics <start date> [<end date>]. E.g.: pull-metrics 2024-02-28 [2024-03-15]")
-	}
-
-	initialDate, err := time.Parse("2006-1-2", os.Args[1])
-	if err != nil {
-		log.Fatalf("Error parsing the time: %v", err)
-	}
-
-	endDate := time.Now()
-	if len(os.Args) > 2 {
-		if date, err := time.Parse("2006-1-2", os.Args[2]); err == nil {
-			endDate = date.Add(time.Hour * 24 - time.Second)
-		}
-	}
-
+func printMetricsForGithub(initialDate, endDate time.Time) {
 	githubToken := os.Getenv("GITHUB_TOKEN")
 	if githubToken == "" {
 		log.Fatal("GITHUB_TOKEN environment variable needed")
@@ -72,7 +57,6 @@ func main() {
 	if githubOwner == "" {
 		log.Fatal("GITHUB_OWNER environment variable needed")
 	}
-
 
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: githubToken})
 	httpClient := oauth2.NewClient(context.Background(), src)
@@ -244,4 +228,154 @@ func main() {
         {Number: 9, Align: text.AlignCenter, AlignFooter: text.AlignCenter},
     })
 	t.Render()
+}
+
+func printMetricsForJira(initialDate, endDate time.Time) {
+	jiraBaseUrl := os.Getenv("JIRA_BASE_URL")
+	if jiraBaseUrl == "" {
+		log.Fatal("JIRA_BASE_URL environment variable needed")
+	}
+
+	jiraUser := os.Getenv("JIRA_USER")
+	if jiraUser == "" {
+		log.Fatal("JIRA_USER environment variable needed")
+	}
+
+	jiraToken := os.Getenv("JIRA_TOKEN")
+	if jiraToken == "" {
+		log.Fatal("JIRA_TOKEN environment variable needed")
+	}
+
+	jiraProject := os.Getenv("JIRA_PROJECT")
+	if jiraProject == "" {
+		log.Fatal("JIRA_PROJECT environment variable needed")
+	}
+
+	type jiraReport struct {
+		Total int
+		Issues []struct {
+			Key string
+			Fields struct {
+				Summary string
+				Assignee struct {
+					DisplayName string
+				}
+			}
+			Changelog struct {
+				Histories []struct {
+					Author struct {
+						DisplayName string
+					}
+					Items []struct {
+						Field string
+						ToString string
+					}
+				}
+			}
+		}
+	}
+
+	client := &http.Client{}
+
+	totalIssues := 0
+	countByPerson := make(map[string]int)
+
+	payload := `{
+		"fields": ["summary", "assignee"],
+		"expand": ["changelog"],
+		"jql": "project = \"%s\" and status changed DURING (%s, %s) TO \"In Progress\" and issuetype not in (Epic, sub-task) ORDER BY assignee ASC",
+		"startAt": %d
+	}`
+	offset := 0
+
+	for {
+		body := []byte(fmt.Sprintf(payload, jiraProject, initialDate.Format("2006-01-02"), endDate.Format("2006-01-02"), offset))
+
+		req, err := http.NewRequest("POST", jiraBaseUrl + "/rest/api/2/search", bytes.NewBuffer(body))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		auth := jiraUser + ":" + jiraToken
+		req.Header.Add("Authorization", "Basic " + base64.StdEncoding.EncodeToString([]byte(auth)))
+		req.Header.Add("Accept", "application/json")
+		req.Header.Add("Content-Type", "application/json")
+
+		res, err := client.Do(req)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer res.Body.Close()
+
+		report := &jiraReport{}
+		err = json.NewDecoder(res.Body).Decode(report)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		totalIssues += report.Total
+		for _, issue := range report.Issues {
+			next:
+			for i:=len(issue.Changelog.Histories)-1; i>=0; i-- {
+				for _, item := range issue.Changelog.Histories[i].Items {
+					if item.Field == "status" && item.ToString == "In Progress" {
+						countByPerson[issue.Changelog.Histories[i].Author.DisplayName]++
+						break next
+					}
+				}
+			}
+		}
+
+		if report.Total < 50 {
+			break
+		}
+		offset += 50
+	}
+
+	fmt.Printf("%d tickets were moved into progress between %v - %v\n", totalIssues, initialDate, endDate)
+
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	t.AppendHeader(table.Row{"Name", "Moved to In Progress"})
+
+	for person, count := range countByPerson {
+		t.AppendRow([]interface{}{
+			person,
+			count,
+		})
+		t.AppendSeparator()
+	}
+    t.SetColumnConfigs([]table.ColumnConfig{
+        {Number: 2, Align: text.AlignCenter, AlignFooter: text.AlignCenter},
+    })
+	t.Render()
+}
+
+func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	if len(os.Args) < 2 {
+		log.Fatal("pull-metrics <start date> [<end date>]. E.g.: pull-metrics 2024-02-28 [2024-03-15]")
+	}
+
+	initialDate, err := time.Parse("2006-1-2", os.Args[1])
+	if err != nil {
+		log.Fatalf("Error parsing the time: %v", err)
+	}
+
+	endDate := time.Now()
+	if len(os.Args) > 2 {
+		if date, err := time.Parse("2006-1-2", os.Args[2]); err == nil {
+			endDate = date.Add(time.Hour * 24 - time.Second)
+		}
+	}
+
+	printMetricsForGithub(initialDate, endDate)
+
+	fmt.Println()
+
+	printMetricsForJira(initialDate, endDate)
 }

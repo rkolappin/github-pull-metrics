@@ -8,6 +8,7 @@ import (
 	"time"
 	"sort"
 	"bytes"
+	"strings"
 	"encoding/json"
 
 	"net/http"
@@ -270,6 +271,9 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 				IssueType struct {
 					Name string
 				}
+				Status struct {
+					Name string
+				}
 			}
 			Changelog struct {
 				Histories []struct {
@@ -291,10 +295,11 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 	countByPerson := make(map[string]struct{
 		totalInProgress int
 		spikeInProgress int
+		closed int
 	})
 
 	payload := `{
-		"fields": ["summary", "assignee", "issuetype"],
+		"fields": ["summary", "assignee", "issuetype", "status"],
 		"expand": ["changelog"],
 		"jql": "project = \"%s\" and status changed DURING (%s, %s) TO \"In Progress\" and issuetype not in (Epic, sub-task) ORDER BY assignee ASC",
 		"startAt": %d
@@ -342,6 +347,10 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 							person.spikeInProgress++
 						}
 
+						if strings.EqualFold(issue.Fields.Status.Name, "Done") || strings.EqualFold(issue.Fields.Status.Name, "Rejected") {
+							person.closed++
+						}
+
 						countByPerson[issue.Changelog.Histories[i].Author.DisplayName] = person
 						break next
 					}
@@ -360,19 +369,21 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"Name", "Total started", "Spikes started"})
+	t.AppendHeader(table.Row{"Name", "Total started", "Spikes started", "Closed"})
 
 	for person, count := range countByPerson {
 		t.AppendRow([]interface{}{
 			person,
 			count.totalInProgress,
 			count.spikeInProgress,
+			count.closed,
 		})
 		t.AppendSeparator()
 	}
     t.SetColumnConfigs([]table.ColumnConfig{
         {Number: 2, Align: text.AlignCenter, AlignFooter: text.AlignCenter},
         {Number: 3, Align: text.AlignCenter, AlignFooter: text.AlignCenter},
+        {Number: 4, Align: text.AlignCenter, AlignFooter: text.AlignCenter},
     })
 	t.Render()
 }

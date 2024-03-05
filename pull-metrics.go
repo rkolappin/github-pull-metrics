@@ -301,6 +301,8 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 		req.Header.Add("Accept", "application/json")
 		req.Header.Add("Content-Type", "application/json")
 
+		fmt.Println("Requesting the 50 items to JIRA")
+
 		res, err := client.Do(req)
 		if err != nil {
 			log.Fatal(err)

@@ -45,17 +45,20 @@ func getNameById(login string)string {
 func printMetricsForGithub(initialDate, endDate time.Time) {
 	githubToken := os.Getenv("GITHUB_TOKEN")
 	if githubToken == "" {
-		log.Fatal("GITHUB_TOKEN environment variable needed")
+		fmt.Println("GITHUB_TOKEN not provided. Skipping this report.")
+		return
 	}
 
 	githubOwner := os.Getenv("GITHUB_OWNER")
 	if githubOwner == "" {
-		log.Fatal("GITHUB_OWNER environment variable needed")
+		fmt.Println("GITHUB_OWNER not provided. Skipping this report.")
+		return
 	}
 
 	githubRepo := os.Getenv("GITHUB_REPO")
 	if githubOwner == "" {
-		log.Fatal("GITHUB_OWNER environment variable needed")
+		fmt.Println("GITHUB_REPO not provided. Skipping this report.")
+		return
 	}
 
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: githubToken})
@@ -233,22 +236,26 @@ func printMetricsForGithub(initialDate, endDate time.Time) {
 func printMetricsForJira(initialDate, endDate time.Time) {
 	jiraBaseUrl := os.Getenv("JIRA_BASE_URL")
 	if jiraBaseUrl == "" {
-		log.Fatal("JIRA_BASE_URL environment variable needed")
+		fmt.Println("JIRA_BASE_URL not provided. Skipping this report.")
+		return
 	}
 
 	jiraUser := os.Getenv("JIRA_USER")
 	if jiraUser == "" {
-		log.Fatal("JIRA_USER environment variable needed")
+		fmt.Println("JIRA_USER not provided. Skipping this report.")
+		return
 	}
 
 	jiraToken := os.Getenv("JIRA_TOKEN")
 	if jiraToken == "" {
-		log.Fatal("JIRA_TOKEN environment variable needed")
+		fmt.Println("JIRA_TOKEN not provided. Skipping this report.")
+		return
 	}
 
 	jiraProject := os.Getenv("JIRA_PROJECT")
 	if jiraProject == "" {
-		log.Fatal("JIRA_PROJECT environment variable needed")
+		fmt.Println("JIRA_PROJECT not provided. Skipping this report.")
+		return
 	}
 
 	type jiraReport struct {

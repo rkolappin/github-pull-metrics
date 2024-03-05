@@ -260,6 +260,9 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 				Assignee struct {
 					DisplayName string
 				}
+				IssueType struct {
+					Name string
+				}
 			}
 			Changelog struct {
 				Histories []struct {
@@ -278,10 +281,13 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 	client := &http.Client{}
 
 	totalIssues := 0
-	countByPerson := make(map[string]int)
+	countByPerson := make(map[string]struct{
+		totalInProgress int
+		spikeInProgress int
+	})
 
 	payload := `{
-		"fields": ["summary", "assignee"],
+		"fields": ["summary", "assignee", "issuetype"],
 		"expand": ["changelog"],
 		"jql": "project = \"%s\" and status changed DURING (%s, %s) TO \"In Progress\" and issuetype not in (Epic, sub-task) ORDER BY assignee ASC",
 		"startAt": %d
@@ -322,7 +328,14 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 			for i:=len(issue.Changelog.Histories)-1; i>=0; i-- {
 				for _, item := range issue.Changelog.Histories[i].Items {
 					if item.Field == "status" && item.ToString == "In Progress" {
-						countByPerson[issue.Changelog.Histories[i].Author.DisplayName]++
+						person := countByPerson[issue.Changelog.Histories[i].Author.DisplayName]
+						person.totalInProgress++
+
+						if issue.Fields.IssueType.Name == "Spike" {
+							person.spikeInProgress++
+						}
+
+						countByPerson[issue.Changelog.Histories[i].Author.DisplayName] = person
 						break next
 					}
 				}
@@ -339,17 +352,19 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"Name", "Moved to In Progress"})
+	t.AppendHeader(table.Row{"Name", "Total In Progress", "Spike In Progress"})
 
 	for person, count := range countByPerson {
 		t.AppendRow([]interface{}{
 			person,
-			count,
+			count.totalInProgress,
+			count.spikeInProgress,
 		})
 		t.AppendSeparator()
 	}
     t.SetColumnConfigs([]table.ColumnConfig{
         {Number: 2, Align: text.AlignCenter, AlignFooter: text.AlignCenter},
+        {Number: 3, Align: text.AlignCenter, AlignFooter: text.AlignCenter},
     })
 	t.Render()
 }

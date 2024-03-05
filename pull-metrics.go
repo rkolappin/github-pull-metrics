@@ -329,7 +329,7 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 			log.Fatal(err)
 		}
 
-		totalIssues += report.Total
+		totalIssues = report.Total
 		for _, issue := range report.Issues {
 			next:
 			for i:=len(issue.Changelog.Histories)-1; i>=0; i-- {
@@ -349,17 +349,18 @@ func printMetricsForJira(initialDate, endDate time.Time) {
 			}
 		}
 
-		if report.Total < 50 {
+		offset += 50
+
+		if offset > report.Total {
 			break
 		}
-		offset += 50
 	}
 
 	fmt.Printf("%d tickets were moved into progress between %v - %v\n", totalIssues, initialDate, endDate)
 
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"Name", "Total In Progress", "Spike In Progress"})
+	t.AppendHeader(table.Row{"Name", "Total started", "Spikes started"})
 
 	for person, count := range countByPerson {
 		t.AppendRow([]interface{}{

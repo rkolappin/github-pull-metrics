@@ -9,6 +9,7 @@ import (
 	"sort"
 	"bytes"
 	"strings"
+	"flag"
 	"encoding/json"
 
 	"net/http"
@@ -405,23 +406,28 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
-	if len(os.Args) < 2 {
+	printUrlsPtr := flag.Bool("urls", false, "Print URLs of the PRs")
+	flag.Parse()
+
+	argsTail := flag.Args()
+
+	if len(argsTail) < 1 {
 		log.Fatal("pull-metrics <start date> [<end date>]. E.g.: pull-metrics 2024-02-28 [2024-03-15]")
 	}
 
-	initialDate, err := time.Parse("2006-1-2", os.Args[1])
+	initialDate, err := time.Parse("2006-1-2", argsTail[0])
 	if err != nil {
 		log.Fatalf("Error parsing the time: %v", err)
 	}
 
 	endDate := time.Now()
-	if len(os.Args) > 2 {
-		if date, err := time.Parse("2006-1-2", os.Args[2]); err == nil {
+	if len(argsTail) > 1 {
+		if date, err := time.Parse("2006-1-2", argsTail[1]); err == nil {
 			endDate = date.Add(time.Hour * 24 - time.Second)
 		}
 	}
 
-	printMetricsForGithub(initialDate, endDate, false)
+	printMetricsForGithub(initialDate, endDate, *printUrlsPtr)
 
 	fmt.Println()
 

@@ -43,7 +43,7 @@ func getNameById(login string)string {
 	return query.User.Name
 }
 
-func printMetricsForGithub(initialDate, endDate time.Time) {
+func printMetricsForGithub(initialDate, endDate time.Time, printUrls bool) {
 	githubToken := os.Getenv("GITHUB_TOKEN")
 	if githubToken == "" {
 		fmt.Println("GITHUB_TOKEN not provided. Skipping this report.")
@@ -71,6 +71,7 @@ func printMetricsForGithub(initialDate, endDate time.Time) {
 		Author struct {
 			Login string
 		}
+		Url string
 		Title string
 		CreatedAt time.Time
 		Additions int
@@ -156,7 +157,7 @@ func printMetricsForGithub(initialDate, endDate time.Time) {
 
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"ID", "Name", "Total PRs", "Merged PRs", "Merged PRs (%)", "Open PRs", "Added lines" , "Removed lines", "Changed files"})
+	t.AppendHeader(table.Row{"ID", "Name", "Total PRs", "Merged PRs", "Merged PRs (%)", "Open PRs", "Added lines" , "Removed lines", "Changed files", "URLs"})
 
 	fmt.Print("Parsing data ")
 	totalPRs 			:= 0
@@ -169,11 +170,12 @@ func printMetricsForGithub(initialDate, endDate time.Time) {
 
 		name := getNameById(login)
 
+		mergedPRs 		:= 0
+		openPRs			:= 0
 		addedLines 		:= 0
 		removedLines 	:= 0
 		changedFiles 	:= 0
-		mergedPRs 		:= 0
-		openPRs			:= 0
+		urls			:= ""
 		for _, pr := range prByUser[login] {
 			addedLines 		+= pr.Additions
 			removedLines 	+= pr.Deletions
@@ -184,9 +186,18 @@ func printMetricsForGithub(initialDate, endDate time.Time) {
 			} else if !pr.Closed || pr.ClosedAt.After(endDate) {
 				openPRs++
 			}
+
+			if printUrls {
+				if urls == "" {
+					urls = pr.Url
+				} else {
+					urls += "\n" + pr.Url
+				}
+			}
 		}
 
 		numPRs := len(prByUser[login])
+
 		t.AppendRow([]interface{}{
 			login,
 			name,
@@ -197,6 +208,7 @@ func printMetricsForGithub(initialDate, endDate time.Time) {
 			addedLines,
 			removedLines,
 			changedFiles,
+			urls,
 		})
 		t.AppendSeparator()
 
@@ -409,7 +421,7 @@ func main() {
 		}
 	}
 
-	printMetricsForGithub(initialDate, endDate)
+	printMetricsForGithub(initialDate, endDate, false)
 
 	fmt.Println()
 

@@ -38,7 +38,7 @@ func getNameById(login string)string {
 	}
 
 	if err := client.Query(context.Background(), &query, variables); err != nil {
-		log.Fatal(err)
+		return ""
 	}
 
 	return query.User.Name
